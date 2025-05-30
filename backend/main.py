@@ -1,22 +1,17 @@
+import json
+import websockets
 from fastapi.responses import FileResponse
 from fastapi import WebSocket, WebSocketDisconnect, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from auth import verify_auth
+
 import binance_pb2
-import websockets
-import json
-import time
+from lib import config, auth, utils
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:5500",
-    "http://127.0.0.1:5500"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       
+    allow_origins=config.CORS_ORIGINS,       
     allow_credentials=True,
     allow_methods=["*"],          
     allow_headers=["*"],         
@@ -24,10 +19,8 @@ app.add_middleware(
 
 @app.websocket("/binance-api/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    print("allooo")
-
     token = websocket.query_params.get("token")
-    if not token or not verify_auth(token):
+    if not token or not auth.verify_auth(token):
         await websocket.close(code=1008) 
         return
 
@@ -37,19 +30,14 @@ async def websocket_endpoint(websocket: WebSocket):
         data = await websocket.receive_bytes()
         request = binance_pb2.SubscriptionRequest()
         request.ParseFromString(data)
-        symbols = [s.lower() + "@ticker" for s in request.symbols]
 
-        url = f"wss://stream.binance.com:9443/stream?streams={'/'.join(symbols)}"
-        async with websockets.connect(url) as binance_ws:
+        async with websockets.connect(utils.get_binance_url(request)) as binance_ws:
             while True:
                 response = await binance_ws.recv()
                 json_data = json.loads(response)
-                symbol = json_data['data']['s']
-                price = json_data['data']['c']
-                ts = int(time.time() * 1000)
+                model = utils.binance_response_to_model(json_data)
 
-                msg = binance_pb2.TickerData(symbol=symbol, price=price, timestamp=ts)
-                await websocket.send_bytes(msg.SerializeToString())
+                await websocket.send_bytes(model.SerializeToString())
 
     except WebSocketDisconnect:
         print("Disconnected")
