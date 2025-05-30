@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Log in</title>
+    </head>
+    <body>
+        <h1>Login with Casdoor</h1>
+        <button onclick="login()">Login</button>
+
+        <script>
+            const clientId = "9e2be556e07696dd157e";
+            const redirectUri = "http://localhost:5500/user.html";
+            const casdoorEndpoint = "https://test-kpi-casdoor.pdf.yachts";
+            const scope = "openid profile email";
+
+            function login() {
+                const url =
+                    `${casdoorEndpoint}/login/oauth/authorize?response_type=token` +
+                    `&client_id=${encodeURIComponent(clientId)}` +
+                    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                    `&scope=${encodeURIComponent(scope)}`;
+                window.location.href = url;
+            }
+        </script>
+    </body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>User</title>
+        <script src="https://cdn.jsdelivr.net/npm/protobufjs/dist/protobuf.min.js"></script>
+        <style>
+            table,
+            th,
+            td {
+                border: 1px solid black;
+                border-collapse: collapse;
+                padding: 6px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Casdoor Login Status</h1>
+        <div id="userinfo">Checking login...</div>
+        <a href="/"><button>Log in again</button></a>
+
+        <h2>Live Binance Prices</h2>
+        <button id="ws-toggle">Connect WebSocket</button>
+        <table id="price-table">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Price</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+
+        <script>
+            const casdoorEndpoint = "https://test-kpi-casdoor.pdf.yachts";
+            const backendWs = "ws://localhost:8000/binance-api/ws";
+
+            function getAccessTokenFromUrl() {
+                const hash = window.location.hash.substring(1);
+                const params = new URLSearchParams(hash);
+                return params.get("access_token");
+            }
+
+            function setCookie(name, value, days) {
+                const expires = new Date(
+                    Date.now() + days * 864e5
+                ).toUTCString();
+                document.cookie =
+                    name +
+                    "=" +
+                    encodeURIComponent(value) +
+                    "; expires=" +
+                    expires +
+                    "; path=/";
+            }
+
+            function getCookie(name) {
+                return document.cookie.split("; ").reduce((r, v) => {
+                    const parts = v.split("=");
+                    return parts[0] === name ? decodeURIComponent(parts[1]) : r;
+                }, "");
+            }
+
+            async function fetchUserInfo(accessToken) {
+                const response = await fetch(
+                    `${casdoorEndpoint}/api/userinfo`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                        },
+                    }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById("userinfo").innerText =
+                        "Logged in as:\n" + JSON.stringify(data, null, 2);
+                } else {
+                    document.getElementById("userinfo").innerText =
+                        "Failed to fetch user info";
+                }
+            }
+
+            let ws = null;
+            let wsConnected = false;
+            let protobufRoot = null;
+            let TickerData = null;
+            let SubRequest = null;
+
+            function updateTable(decoded) {
+                const tableBody = document.getElementById("table-body");
+                let row = document.getElementById(decoded.symbol);
+                if (!row) {
+                    row = document.createElement("tr");
+                    row.id = decoded.symbol;
+                    row.innerHTML = `<td>${decoded.symbol}</td><td></td><td></td>`;
+                    tableBody.appendChild(row);
+                }
+                row.children[1].textContent = decoded.price;
+                row.children[2].textContent = new Date(
+                    decoded.timestamp
+                ).toLocaleTimeString();
+            }
+
+            async function connectWebSocket(accessToken) {
+                if (!protobufRoot) {
+                    protobufRoot = await protobuf.load("binance.proto");
+                    TickerData = protobufRoot.lookupType("TickerData");
+                    SubRequest = protobufRoot.lookupType("SubscriptionRequest");
+                }
+
+                ws = new WebSocket(`${backendWs}?token=${accessToken}`);
+                ws.binaryType = "arraybuffer";
+
+                ws.onopen = () => {
+                    wsConnected = true;
+                    document.getElementById("ws-toggle").innerText =
+                        "Disconnect WebSocket";
+                    const payload = { symbols: ["BTCUSDT", "ETHUSDT"] };
+                    const message = SubRequest.create(payload);
+                    const buffer = SubRequest.encode(message).finish();
+                    ws.send(buffer);
+                };
+
+                ws.onmessage = (event) => {
+                    const buffer = new Uint8Array(event.data);
+                    const decoded = TickerData.decode(buffer);
+                    updateTable(decoded);
+                };
+
+                ws.onclose = () => {
+                    wsConnected = false;
+                    document.getElementById("ws-toggle").innerText =
+                        "Connect WebSocket";
+                };
+            }
+
+            function disconnectWebSocket() {
+                if (ws && wsConnected) {
+                    ws.close();
+                }
+            }
+
+            async function main() {
+                const tokenFromUrl = getAccessTokenFromUrl();
+                let token = tokenFromUrl || getCookie("access_token");
+
+                if (tokenFromUrl) setCookie("access_token", tokenFromUrl, 1);
+
+                if (token) {
+                    await fetchUserInfo(token);
+
+                    document
+                        .getElementById("ws-toggle")
+                        .addEventListener("click", async () => {
+                            if (!wsConnected) {
+                                await connectWebSocket(token);
+                            } else {
+                                disconnectWebSocket();
+                            }
+                        });
+                } else {
+                    document.getElementById("userinfo").innerText =
+                        "Not logged in. No token found.";
+                }
+            }
+
+            main();
+        </script>
+    </body>
+</html>
