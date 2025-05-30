@@ -33,7 +33,10 @@
 
         <script>
             const casdoorEndpoint = "https://test-kpi-casdoor.pdf.yachts";
-            const backendWs = "ws://localhost:8000/binance-api/ws";
+            const backendWs =
+                "https://test-kpi-casdoor.pdf.yachts/binance-api/ws";
+            const backendProto =
+                "https://test-kpi-casdoor.pdf.yachts/binance-api/binance.proto";
 
             function getAccessTokenFromUrl() {
                 const hash = window.location.hash.substring(1);
@@ -104,7 +107,7 @@
 
             async function connectWebSocket(accessToken) {
                 if (!protobufRoot) {
-                    protobufRoot = await protobuf.load("binance.proto");
+                    protobufRoot = await protobuf.load(backendProto);
                     TickerData = protobufRoot.lookupType("TickerData");
                     SubRequest = protobufRoot.lookupType("SubscriptionRequest");
                 }
@@ -160,8 +163,8 @@
                             }
                         });
                 } else {
-                    document.getElementById("userinfo").innerText =
-                        "Not logged in. No token found.";
+                    document.getElementById("userinfo").innerHTML =
+                        "<span style='background: red; font-weight: 700;'>Not logged in. No token found.</span>";
                 }
             }
 
