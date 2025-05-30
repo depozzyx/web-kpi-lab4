@@ -1,5 +1,6 @@
 from fastapi.responses import FileResponse
 from fastapi import WebSocket, WebSocketDisconnect, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from auth import verify_auth
 import binance_pb2
 import websockets
@@ -7,6 +8,19 @@ import json
 import time
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:5050",
+    "http://127.0.0.1:5050"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,       
+    allow_credentials=True,
+    allow_methods=["*"],          
+    allow_headers=["*"],         
+)
 
 @app.websocket("/binance-api/ws")
 async def websocket_endpoint(websocket: WebSocket):
